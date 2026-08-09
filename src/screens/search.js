@@ -121,7 +121,8 @@ function handwriting() {
       h('a', { href: '#/settings', class: 'small' }, '설정에서 넣기 →'),
     ) : null,
     h('p', { class: 'hint', style: 'margin:0 0 8px' },
-      '한 글자든 문장이든 이어서 쓰세요. 칸을 나누지 않아도 한 번에 읽습니다. 한글로 써도 됩니다.'),
+      '한 글자든 문장이든 이어서 쓰세요. 칸을 나누지 않아도 한 번에 읽습니다. ' +
+      '한글로 써도 됩니다 — 발음(코레와)이든 뜻(고맙습니다)이든 일본어로 바꿔 줍니다.'),
     h('div', { style: 'display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center' },
       penBtn, eraseBtn,
       h('span', { style: 'width:10px' }),
@@ -166,11 +167,14 @@ function recognizedCard(res, pad) {
   const box = h('div')
 
   const escape = h('div', { class: 'card' },
-    h('div', { class: 'small muted', style: 'margin-bottom:8px' }, `읽어낸 글자: ${res.recognized}`),
+    h('div', { class: 'small muted', style: 'margin-bottom:8px' },
+      `읽어낸 글자: ${res.recognized}` +
+      (res.japanese && res.japanese !== res.recognized ? `  →  ${res.japanese}` : '')),
     h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
       h('button', { class: 'btn btn-sm', onClick: () => { pad.clear(); box.remove() } }, '다시 쓰기'),
       h('button', {
         class: 'btn btn-sm',
+        // 잘못 읽었으면 고쳐 쓸 수 있게. 손으로 쓴 글자 쪽을 넣어 준다.
         onClick: () => { location.hash = '#/q/' + encodeURIComponent(res.recognized) },
       }, '직접 고치기'),
     ),
@@ -180,7 +184,7 @@ function recognizedCard(res, pad) {
   if (res.kind === 'word' && isLoaded()) {
     const hit = dictSearch(res.japanese || res.recognized, { limit: 1, rankFn })[0]
     if (hit) {
-      box.append(wordCard(hit.entry, 'hw', false), escape)
+      box.append(readAsChip(res.readAs), wordCard(hit.entry, 'hw', false), escape)
       return box
     }
   }
@@ -457,9 +461,22 @@ function looksLikeSentence(q) {
   return [...q].length >= (isJapanese(q) ? 8 : 6)
 }
 
+// 한글을 넣었을 때 「발음을 옮긴 것」으로 봤는지 「뜻을 옮긴 것」으로 봤는지에
+// 따라 결과가 완전히 달라진다. 그 판단을 감추면 왜 이런 답이 나왔는지 알 수 없다.
+const READ_AS_LABEL = {
+  'korean-sound': '한글 발음 → 일본어',
+  'korean-meaning': '한국어 뜻 → 일본어',
+}
+
+function readAsChip(readAs) {
+  const label = READ_AS_LABEL[readAs]
+  return label ? h('div', { class: 'chips', style: 'margin-bottom:8px' }, h('span', { class: 'chip' }, label)) : null
+}
+
 function sentenceCard(res) {
   const card = h('div', { class: 'card' })
   card.append(
+    readAsChip(res.readAs),
     h('div', { class: 'ja', style: 'font-size:1.25rem;font-weight:600' }, res.japanese),
     res.furigana && h('div', { class: 'ja small', style: 'color:var(--accent-ink);margin-top:2px' }, res.furigana),
     h('div', { style: 'margin-top:8px' }, res.korean),

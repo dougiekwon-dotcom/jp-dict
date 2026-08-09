@@ -60,15 +60,28 @@ const BREAKDOWN_SCHEMA = {
   additionalProperties: false,
 }
 
+// 입력을 어떻게 읽었는지도 같이 받는다. 한국어를 넣었을 때 「발음을 옮긴 것」으로
+// 봤는지 「뜻을 옮긴 것」으로 봤는지에 따라 결과가 완전히 달라지므로, 사용자가
+// 그 판단을 눈으로 확인할 수 있어야 한다.
+const READ_AS = {
+  type: 'string',
+  enum: ['japanese', 'korean-sound', 'korean-meaning'],
+  description:
+    'japanese: 입력이 일본어였다. ' +
+    'korean-sound: 한글이 일본어 발음을 적은 것이었다(코레와 → これは). ' +
+    'korean-meaning: 한글이 한국어 뜻이어서 일본어로 옮겼다(고맙습니다 → ありがとうございます).',
+}
+
 const SENTENCE_SCHEMA = {
   type: 'object',
   properties: {
+    readAs: READ_AS,
     japanese: { type: 'string', description: '정규화된 일본어 원문' },
     furigana: { type: 'string', description: '원문 전체를 히라가나로만' },
     korean: { type: 'string', description: '한국어 해석' },
     words: { type: 'array', items: BREAKDOWN_SCHEMA, description: '낱말 분해' },
   },
-  required: ['japanese', 'furigana', 'korean', 'words'],
+  required: ['readAs', 'japanese', 'furigana', 'korean', 'words'],
   additionalProperties: false,
 }
 
@@ -76,14 +89,15 @@ const SENTENCE_SCHEMA = {
 const HANDWRITING_SCHEMA = {
   type: 'object',
   properties: {
-    recognized: { type: 'string', description: '손글씨를 읽어낸 일본어. 후보를 나열하지 말고 하나만.' },
+    recognized: { type: 'string', description: '손글씨에 쓰인 글자를 그대로 읽어낸 것. 후보를 나열하지 말고 하나만.' },
+    readAs: READ_AS,
     kind: { type: 'string', enum: ['word', 'sentence'], description: '낱말인지 문장인지' },
-    japanese: { type: 'string' },
+    japanese: { type: 'string', description: '최종 일본어' },
     furigana: { type: 'string' },
     korean: { type: 'string' },
     words: { type: 'array', items: BREAKDOWN_SCHEMA },
   },
-  required: ['recognized', 'kind', 'japanese', 'furigana', 'korean', 'words'],
+  required: ['recognized', 'readAs', 'kind', 'japanese', 'furigana', 'korean', 'words'],
   additionalProperties: false,
 }
 
@@ -111,12 +125,22 @@ export async function glossWord({ word, reading, glosses, pos }) {
 export async function readSentence(text, { fromHangul = false } = {}) {
   const user = fromHangul
     ? [
-        '아래는 일본어 문장을 한국어 발음으로 적은 것이다. 원래 일본어 문장으로 되돌리고 해석해라.',
-        '한국식 표기라 장음이 빠져 있거나 조사 표기가 소리대로일 수 있다(は를 「와」로 적는 등).',
+        '아래는 한글로 적혀 있다. 둘 중 하나이니 어느 쪽인지 먼저 판단해라.',
+        '',
+        '(가) 일본어를 한국어 발음으로 적은 것 — 「코레와 난데스카」, 「아리가토」.',
+        '     이 경우 원래 일본어로 되돌린다. 한국식 표기라 장음이 빠져 있거나',
+        '     조사를 소리대로 적었을 수 있다(は를 「와」로, へ를 「에」로).',
+        '',
+        '(나) 한국어 뜻 — 「고맙습니다」, 「화장실 어디예요」.',
+        '     이 경우 자연스러운 일본어로 옮긴다. 직역이 아니라 실제로 그 상황에서',
+        '     쓰는 말로 옮겨라.',
+        '',
+        '어느 쪽으로 읽었는지 readAs에 표시하고, japanese에는 최종 일본어를 넣어라.',
+        'korean에는 그 일본어의 뜻을 적는다.',
         '',
         text,
       ].join('\n')
-    : ['아래 일본어를 해석해라.', '', text].join('\n')
+    : ['아래 일본어를 해석해라. readAs는 japanese 로 둔다.', '', text].join('\n')
 
   return call({
     kind: fromHangul ? 'sentence-ko' : 'sentence',
@@ -132,12 +156,22 @@ export async function readSentence(text, { fromHangul = false } = {}) {
 export async function readHandwriting(pngDataUrl) {
   const base64 = pngDataUrl.split(',')[1] || ''
   const user = [
-    '이미지는 손으로 쓴 글씨다. 일본어(한자·히라가나·가타카나)이거나, 일본어를 한국어 발음으로 적은 한글일 수 있다.',
-    '한 글자일 수도 있고 여러 글자를 이어 쓴 낱말이나 문장일 수도 있다.',
+    '이미지는 손으로 쓴 글씨다. 한 글자일 수도 있고 여러 글자를 이어 쓴 낱말이나 문장일 수도 있다.',
+    '후보를 여러 개 내놓지 말고 가장 그럴듯한 것 하나로 판단하고, 그대로 해석까지 해라.',
     '',
-    '후보를 여러 개 내놓지 말고 가장 그럴듯한 것 하나로 판단해라. 그리고 그 결과를 바로 해석까지 해라.',
-    '한글로 쓰여 있으면 원래 일본어로 되돌린 다음 해석해라.',
-    'recognized에는 읽어낸 일본어를 적는다.',
+    '세 가지 중 하나다. 어느 쪽인지 판단해서 readAs에 표시해라.',
+    '',
+    '(가) 일본어 — 한자·히라가나·가타카나. 그대로 읽고 해석한다.',
+    '',
+    '(나) 일본어를 한국어 발음으로 적은 한글 — 「코레와 난데스카」, 「아리가토」.',
+    '     원래 일본어로 되돌린다. 장음이 빠져 있거나 조사를 소리대로 적었을 수 있다',
+    '     (は를 「와」로, へ를 「에」로).',
+    '',
+    '(다) 한국어 뜻 — 「고맙습니다」, 「화장실 어디예요」.',
+    '     자연스러운 일본어로 옮긴다. 직역이 아니라 실제로 그 상황에서 쓰는 말로.',
+    '',
+    'recognized에는 손글씨에 쓰인 글자를 그대로 적고(한글이면 한글 그대로),',
+    'japanese에는 최종 일본어를 넣어라.',
   ].join('\n')
 
   return call({
