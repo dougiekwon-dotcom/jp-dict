@@ -2,7 +2,8 @@ import { h, clear, toast, ago } from '../ui/dom.js'
 import { syncState, createSyncGist, syncNow } from '../core/sync.js'
 import { ensureLoaded, isLoaded, dictMeta } from '../core/dict.js'
 import {
-  getSettings, saveSettings, PRESETS, MODEL_LABEL, modelFor, hasApiKey, applyTextWeight,
+  getSettings, saveSettings, PRESETS, MODEL_LABEL, modelFor, hasApiKey,
+  applyTextWeight, weightLevel, WEIGHT_MIN, WEIGHT_MAX,
 } from '../core/settings.js'
 import { cacheSize, cacheClear, exportAll, importMerge, invalidateCounts } from '../core/store.js'
 import {
@@ -161,23 +162,36 @@ function displayCard() {
     h('ul', { class: 'meanings', style: 'margin-top:4px' }, h('li', {}, '경제, 경제학')),
   )
 
-  const buttons = h('div', { style: 'display:flex;gap:8px' })
+  const value = h('span', { class: 'small muted' })
+  const slider = h('input', {
+    type: 'range',
+    min: String(WEIGHT_MIN),
+    max: String(WEIGHT_MAX),
+    step: '1',
+    value: String(weightLevel()),
+    class: 'block',
+    style: 'accent-color:var(--accent)',
+    // 드래그하는 동안 바로 반영해서 눈으로 고르게 한다.
+    onInput: (e) => { applyTextWeight(e.target.value); paint() },
+    onChange: (e) => { saveSettings({ textWeight: Number(e.target.value) }); applyTextWeight(e.target.value); paint() },
+  })
+
   const paint = () => {
-    clear(buttons)
-    for (const [id, label] of [['normal', '보통'], ['light', '가늘게']]) {
-      buttons.append(h('button', {
-        class: 'btn btn-sm' + (getSettings().textWeight === id ? ' btn-primary' : ''),
-        onClick: () => { saveSettings({ textWeight: id }); applyTextWeight(id); paint() },
-      }, label))
-    }
+    const lv = weightLevel(slider.value)
+    value.textContent = ['가장 가늘게', '가늘게', '보통', '굵게', '가장 굵게'][lv - 1]
   }
   paint()
 
   return h('div', { class: 'card' },
     h('h3', {}, '글자 굵기'),
     h('p', { class: 'small muted', style: 'margin:0 0 10px' },
-      '화면에 따라 글자가 무거워 보이면 한 단계 가늘게 할 수 있습니다.'),
-    buttons,
+      '기기에 따라 같은 굵기도 무겁게 보입니다. 아래 미리보기를 보면서 맞추세요.'),
+    h('div', { class: 'row-between', style: 'margin-bottom:4px' },
+      h('span', { class: 'small muted' }, '가늘게'),
+      value,
+      h('span', { class: 'small muted' }, '굵게'),
+    ),
+    slider,
     sample,
   )
 }

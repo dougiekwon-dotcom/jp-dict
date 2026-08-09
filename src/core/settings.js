@@ -44,7 +44,8 @@ const DEFAULTS = {
   preset: 'balanced',
   models: null,        // 프리셋을 벗어나 직접 고른 경우에만 채워진다
   book: '',            // 지금 읽는 책 — 조회한 낱말에 자동으로 붙는다
-  textWeight: 'normal', // 'normal' | 'light' — 화면에 따라 글자가 무거워 보일 때
+  textWeight: 3,       // 1(가장 가늘게) ~ 5(가장 굵게). 기기마다 체감이 다르다.
+  penWidth: 5,         // 손글씨 펜 굵기
 
   // 기기 간 동기화 (sync.js). 기록만 오가고 apiKey는 올리지 않는다.
   syncToken: '',       // GitHub 토큰 (gist 권한)
@@ -74,10 +75,21 @@ export function modelFor(task) {
   return s.models?.[task] || preset.models[task]
 }
 
+export const WEIGHT_MIN = 1
+export const WEIGHT_MAX = 5
+
+// 예전 값('normal' / 'light')을 쓰던 설정도 그대로 열려야 한다.
+export function weightLevel(raw = getSettings().textWeight) {
+  if (raw === 'light') return 2
+  if (raw === 'normal') return 3
+  const n = Number(raw)
+  return Number.isFinite(n) ? Math.min(WEIGHT_MAX, Math.max(WEIGHT_MIN, Math.round(n))) : 3
+}
+
 // 글자 굵기를 문서 전체에 반영한다. CSS 변수 두 개(--w-strong/--w-medium)를
 // 바꾸는 것이 전부라 화면을 다시 그릴 필요가 없다.
-export function applyTextWeight(weight = getSettings().textWeight) {
-  document.documentElement.dataset.weight = weight === 'light' ? 'light' : 'normal'
+export function applyTextWeight(level = weightLevel()) {
+  document.documentElement.dataset.weight = String(weightLevel(level))
 }
 
 // 키가 형태만이라도 맞는지. 오타나 붙여넣기 사고를 여기서 걸러 준다.

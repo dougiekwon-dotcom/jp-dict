@@ -20,10 +20,11 @@
   --w-medium: 500;   /* 버튼·칩·탭·목록 */
 }
 
-:root[data-weight="light"] {
-  --w-strong: 500;
-  --w-medium: 400;
-}
+:root[data-weight="1"] { --w-strong: 400; --w-medium: 300; }
+:root[data-weight="2"] { --w-strong: 500; --w-medium: 400; }
+:root[data-weight="3"] { --w-strong: 600; --w-medium: 500; }
+:root[data-weight="4"] { --w-strong: 700; --w-medium: 600; }
+:root[data-weight="5"] { --w-strong: 800; --w-medium: 700; }
 
 * { box-sizing: border-box; }
 

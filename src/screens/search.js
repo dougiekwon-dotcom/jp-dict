@@ -12,27 +12,25 @@ import {
 } from '../core/dict.js'
 import { hangulToKana, hangulToKanjiWords, romajiToKana } from '../core/hangul2kana.js'
 import { guessReading } from '../core/hanja.js'
-import { inkpad } from '../ui/inkpad.js'
+import { inkpad, PEN_WIDTHS } from '../ui/inkpad.js'
 import { glossWord, readSentence, readHandwriting, AiError } from '../core/ai.js'
 import {
   recordLookup, getEntry, entryId, lookupCounts, bumpLocalCount,
 } from '../core/store.js'
-import { getSettings, hasApiKey } from '../core/settings.js'
+import { getSettings, saveSettings, hasApiKey } from '../core/settings.js'
 
+// 손글씨가 이 앱의 주된 입력이다 — 읽는 법을 모르는 한자는 애초에 칠 수가 없고,
+// 그게 사전을 펼치는 이유의 대부분이다. 그래서 첫 화면이 캔버스다.
+//
+// 글자 입력은 방식을 나누지 않는다. 「경제」인지 「経済」인지 「korewa」인지는
+// 글자만 봐도 알 수 있는데, 그걸 사용자에게 고르게 하는 건 일을 떠넘기는 것이다.
 const MODES = [
-  { id: 'ko', label: '한글 발음' },
-  { id: 'ja', label: '일본어' },
-  { id: 'hw', label: '손글씨' },
+  { id: 'hw', label: '✏️ 손글씨' },
+  { id: 'text', label: '글자로' },
 ]
 
-const PLACEHOLDER = { ko: '경제 / 코레와 / korewa', ja: '経済 / けいざい / 食べ' }
-const HINT = {
-  ko: '한자어는 한국 한자음으로(경제), 그 밖에는 소리 나는 대로(코레와). 로마자도 됩니다.',
-  ja: '한자·히라가나·가타카나 모두 됩니다. 앞부분만 쳐도 찾습니다.',
-}
-
-let mode = 'ko'
-const lastQuery = { ko: '', ja: '' }
+let mode = 'hw'
+let lastQuery = ''
 
 export async function search(view, params) {
   clear(view)
@@ -40,7 +38,8 @@ export async function search(view, params) {
   const body = h('div')
   view.append(modeBar, body)
 
-  if (params?.q) { mode = 'ja'; lastQuery.ja = params.q }
+  // 단어장·통계에서 낱말을 누르거나 손글씨 「직접 고치기」로 들어오는 경로
+  if (params?.q) { mode = 'text'; lastQuery = params.q }
 
   const renderModes = () => {
     clear(modeBar)
@@ -63,7 +62,7 @@ export async function search(view, params) {
       body.append(built.el)
       return
     }
-    body.append(textInput(mode))
+    body.append(textInput())
   }
 
   renderModes()
@@ -77,7 +76,11 @@ function handwriting() {
   const wrap = h('div')
   const results = h('div', { style: 'margin-top:12px' })
 
-  const pad = inkpad({ onChange: (n) => { recognizeBtn.disabled = n === 0 } })
+  const saved = getSettings()
+  const pad = inkpad({
+    penWidth: saved.penWidth || 5,
+    onChange: (n) => { recognizeBtn.disabled = n === 0 },
+  })
 
   const recognizeBtn = h('button', { class: 'btn btn-primary', disabled: true, onClick: () => run() }, '찾기')
   const undoBtn = h('button', { class: 'btn btn-sm', onClick: () => pad.undo() }, '되돌리기')
@@ -86,10 +89,47 @@ function handwriting() {
     onClick: () => { pad.clear(); clear(results) },
   }, '다시 쓰기')
 
+  // 펜 / 지우개. 스타일러스는 뒤집거나 옆 버튼을 눌러도 지워지므로, 이 버튼은
+  // 손가락으로 쓸 때와 명시적으로 지우개 모드를 유지하고 싶을 때를 위한 것이다.
+  const penBtn = h('button', { class: 'btn btn-sm', onClick: () => setMode('pen') }, '✏️ 펜')
+  const eraseBtn = h('button', { class: 'btn btn-sm', onClick: () => setMode('eraser') }, '🧽 지우개')
+  const setMode = (m) => {
+    pad.setMode(m)
+    penBtn.className = 'btn btn-sm' + (m === 'pen' ? ' btn-primary' : '')
+    eraseBtn.className = 'btn btn-sm' + (m === 'eraser' ? ' btn-primary' : '')
+  }
+  setMode('pen')
+
+  // 펜 굵기
+  const widthBtns = PEN_WIDTHS.map((w, i) => h('button', {
+    class: 'btn btn-sm',
+    title: `펜 굵기 ${w}`,
+    onClick: () => setWidth(w),
+  }, ['가늘게', '보통', '굵게'][i]))
+  const setWidth = (w) => {
+    pad.setPenWidth(w)
+    saveSettings({ penWidth: w })
+    widthBtns.forEach((b, i) => {
+      b.className = 'btn btn-sm' + (PEN_WIDTHS[i] === w ? ' btn-primary' : '')
+    })
+  }
+  setWidth(saved.penWidth || 5)
+
   wrap.append(
+    !hasApiKey() ? h('div', { class: 'card', style: 'padding:12px' },
+      h('p', { class: 'small', style: 'margin:0' }, '손글씨 판독에는 API 키가 필요합니다.'),
+      h('a', { href: '#/settings', class: 'small' }, '설정에서 넣기 →'),
+    ) : null,
     h('p', { class: 'hint', style: 'margin:0 0 8px' },
       '한 글자든 문장이든 이어서 쓰세요. 칸을 나누지 않아도 한 번에 읽습니다. 한글로 써도 됩니다.'),
+    h('div', { style: 'display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap;align-items:center' },
+      penBtn, eraseBtn,
+      h('span', { style: 'width:10px' }),
+      ...widthBtns,
+    ),
     pad.el,
+    h('p', { class: 'hint', style: 'margin:6px 2px 0' },
+      '스타일러스는 뒤집거나 옆 버튼을 누른 채 그으면 지우개로 씁니다.'),
     h('div', { style: 'display:flex;gap:8px;margin-top:10px;align-items:center' },
       recognizeBtn, undoBtn, clearBtn),
     results,
@@ -150,22 +190,23 @@ function recognizedCard(res, pad) {
 }
 
 // ── 입력창 ────────────────────────────────────────────────────────────────
-function textInput(kind) {
+function textInput() {
   const wrap = h('div')
   const input = h('input', {
     type: 'search',
-    class: kind === 'ja' ? 'ja' : '',
-    placeholder: PLACEHOLDER[kind],
+    class: 'ja',
+    placeholder: '경제 / 코레와 / 経済 / korewa',
     autocomplete: 'off',
     autocapitalize: 'off',
     spellcheck: false,
-    value: lastQuery[kind] || '',
+    value: lastQuery,
   })
   const results = h('div', { style: 'margin-top:12px' })
 
   wrap.append(
     h('div', { class: 'searchbar' }, input),
-    h('div', { class: 'hint' }, HINT[kind]),
+    h('div', { class: 'hint' },
+      '한글로 쳐도, 일본어로 쳐도, 로마자로 쳐도 알아서 찾습니다. 앞부분만 쳐도 됩니다.'),
     results,
   )
 
@@ -173,15 +214,16 @@ function textInput(kind) {
   // commit=true 는 사용자가 확정했다는 뜻 — 이때만 AI를 부른다.
   const run = async (commit) => {
     const q = input.value.trim()
-    lastQuery[kind] = q
+    lastQuery = q
     const mine = ++seq
     clear(results)
     if (!q) return
     if (!(await load(results))) return
     if (mine !== seq) return
 
-    const found = kind === 'ko' ? lookupKorean(q) : lookupJapanese(q)
-    render(results, found, q, kind, commit)
+    // 글자를 보면 어느 경로인지 알 수 있다. 굳이 물어보지 않는다.
+    const ja = isJapanese(q)
+    render(results, ja ? lookupJapanese(q) : lookupKorean(q), q, ja ? 'ja' : 'ko', commit)
   }
 
   let timer = null
