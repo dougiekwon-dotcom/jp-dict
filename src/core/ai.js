@@ -89,15 +89,22 @@ const SENTENCE_SCHEMA = {
 const HANDWRITING_SCHEMA = {
   type: 'object',
   properties: {
-    recognized: { type: 'string', description: '손글씨에 쓰인 글자를 그대로 읽어낸 것. 후보를 나열하지 말고 하나만.' },
+    recognized: { type: 'string', description: '손글씨에 쓰인 글자를 그대로 읽어낸 것. 가장 그럴듯한 하나만.' },
     readAs: READ_AS,
+    alternatives: {
+      type: 'array',
+      items: { type: 'string' },
+      description:
+        '한자 한 글자만 쓰여 있고 닮은 글자와 헷갈릴 여지가 있을 때만, 다음으로 그럴듯한 한자를 2~4개. ' +
+        '여러 글자이거나 확실하면 빈 배열.',
+    },
     kind: { type: 'string', enum: ['word', 'sentence'], description: '낱말인지 문장인지' },
     japanese: { type: 'string', description: '최종 일본어' },
     furigana: { type: 'string' },
     korean: { type: 'string' },
     words: { type: 'array', items: BREAKDOWN_SCHEMA },
   },
-  required: ['recognized', 'readAs', 'kind', 'japanese', 'furigana', 'korean', 'words'],
+  required: ['recognized', 'readAs', 'alternatives', 'kind', 'japanese', 'furigana', 'korean', 'words'],
   additionalProperties: false,
 }
 
@@ -172,6 +179,10 @@ export async function readHandwriting(pngDataUrl) {
     '',
     'recognized에는 손글씨에 쓰인 글자를 그대로 적고(한글이면 한글 그대로),',
     'japanese에는 최종 일본어를 넣어라.',
+    '',
+    '한자 한 글자만 쓰여 있을 때는 alternatives에 다음으로 그럴듯한 한자를 2~4개 넣어라.',
+    '손글씨는 未/末, 土/士, 己/已/巳처럼 닮은 글자를 가리기 어렵고, 한 글자는 문맥으로',
+    '바로잡을 수도 없다. 여러 글자이거나 확실하면 빈 배열로 둔다.',
   ].join('\n')
 
   return call({

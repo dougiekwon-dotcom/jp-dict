@@ -282,6 +282,33 @@ export function hasForm(form) {
   return byExact ? byExact.has(normalizeJa(form)) : false
 }
 
+// 이 한자가 들어간 낱말들. 한자 하나를 배울 때 실제로 필요한 건 그 글자가
+// 어떤 말에 쓰이는지다 — 뜻풀이만으로는 손에 안 잡힌다.
+// 색인을 따로 두지 않고 훑는다. 2만여 항목이라 몇 밀리초면 끝나고, 한자 카드를
+// 열 때만 부르므로 색인을 유지하는 값이 아깝다.
+export function wordsContaining(ch, limit = 8) {
+  if (!W) return []
+  const out = []
+  for (let i = 0; i < W.length; i++) {
+    const forms = W[i][K]
+    if (!forms || !forms.includes(ch)) continue
+    const e = decode(i)
+    if (!e.word.includes(ch)) continue      // 희귀 표기에만 들어있는 경우는 뺀다
+    out.push(e)
+  }
+  // 짧고 중심적인 낱말부터. 한자 하나를 배우는 데는 그쪽이 쓸모 있다.
+  //
+  // 한자 빈도 평균만으로 줄 세우면 엉뚱해진다 — 日経은 日이 워낙 흔한 글자라
+  // 経済보다 앞서는데, 실제로 자주 쓰는 말은 반대다. JMdict는 중심적인 낱말에
+  // 뜻을 더 여러 개 달아두므로 그걸 먼저 본다. 단어 빈도가 없는 상황에서
+  // 쓸 수 있는 신호 중에는 이게 가장 낫다.
+  out.sort((a, b) =>
+    a.word.length - b.word.length ||
+    b.glosses.length - a.glosses.length ||
+    wordFreqScore(a.word) - wordFreqScore(b.word))
+  return out.slice(0, limit)
+}
+
 function prefixMatches(prefix, cap) {
   const out = []
   let lo = 0, hi = sortedKeys.length

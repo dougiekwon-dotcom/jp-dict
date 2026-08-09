@@ -6,7 +6,7 @@
 // 결제된다.
 
 import { h, clear, toast, ago } from '../ui/dom.js'
-import { entryCard, kanjiRow, hitList } from '../ui/entryCard.js'
+import { entryCard, kanjiRow, hitList, kanjiCard, kanjiChoices } from '../ui/entryCard.js'
 import {
   ensureLoaded, isLoaded, search as dictSearch, searchAny, dictMeta, isHangul, isJapanese,
 } from '../core/dict.js'
@@ -162,14 +162,19 @@ function handwriting() {
   return { el: wrap, pad }
 }
 
-// 인식 결과. 후보를 나열하지 않는 대신, 틀렸을 때의 출구 두 개를 반드시 둔다.
+// 인식 결과.
+//
+// 1순위는 바로 카드로 보여준다 — 맞으면 더 누를 게 없다. 후보는 그 아래 칩으로만
+// 둔다. 네이버 사전처럼 고르기 전에 아무것도 안 보여주면 맞은 경우에도 한 번 더
+// 눌러야 한다. 후보는 같은 호출에서 함께 받으므로 왕복이 늘지도 않는다.
 function recognizedCard(res, pad) {
   const box = h('div')
+  const best = res.japanese || res.recognized
 
-  const escape = h('div', { class: 'card' },
+  const escape = (shown) => h('div', { class: 'card' },
     h('div', { class: 'small muted', style: 'margin-bottom:8px' },
       `읽어낸 글자: ${res.recognized}` +
-      (res.japanese && res.japanese !== res.recognized ? `  →  ${res.japanese}` : '')),
+      (shown && shown !== res.recognized ? `  →  ${shown}` : '')),
     h('div', { style: 'display:flex;gap:8px;flex-wrap:wrap' },
       h('button', { class: 'btn btn-sm', onClick: () => { pad.clear(); box.remove() } }, '다시 쓰기'),
       h('button', {
@@ -180,16 +185,34 @@ function recognizedCard(res, pad) {
     ),
   )
 
+  // 한자 한 글자 — 그 글자가 든 낱말까지 붙은 한자 카드로 보여주고,
+  // 닮은 글자를 잘못 읽었을 경우를 대비해 후보를 아래에 깐다.
+  if (isSingleKanji(best)) {
+    const alts = (res.alternatives || []).filter(isSingleKanji)
+    const paint = (ch) => {
+      clear(box)
+      const others = [best, ...alts].filter((c) => c !== ch)
+      box.append(
+        readAsChip(res.readAs),
+        singleKanji(ch),
+        others.length ? h('div', { class: 'card' }, kanjiChoices(others, paint)) : null,
+        escape(ch),
+      )
+    }
+    paint(best)
+    return box
+  }
+
   // 낱말이면 사전 항목으로 이어 붙인다 — 한자 분해와 한자음 다리를 얹기 위해서다.
   if (res.kind === 'word' && isLoaded()) {
-    const hit = dictSearch(res.japanese || res.recognized, { limit: 1, rankFn })[0]
+    const hit = dictSearch(best, { limit: 1, rankFn })[0]
     if (hit) {
-      box.append(readAsChip(res.readAs), wordCard(hit.entry, 'hw', false), escape)
+      box.append(readAsChip(res.readAs), wordCard(hit.entry, 'hw', false), escape(best))
       return box
     }
   }
 
-  box.append(sentenceCard(res), escape)
+  box.append(sentenceCard(res), escape(best))
   return box
 }
 
@@ -224,6 +247,13 @@ function textInput() {
     if (!q) return
     if (!(await load(results))) return
     if (mine !== seq) return
+
+    // 한자 한 글자를 쳤다면 그 글자 자체를 알고 싶은 것이다. 낱말로 찾아
+    // 던져주는 것보다 한자 카드가 맞다 (그 글자가 든 낱말도 거기 같이 나온다).
+    if (isSingleKanji(q)) {
+      results.append(singleKanji(q))
+      return
+    }
 
     // 글자를 보면 어느 경로인지 알 수 있다. 굳이 물어보지 않는다.
     const ja = isJapanese(q)
@@ -303,6 +333,18 @@ function lookupKorean(q) {
   }
 
   return { hits: merged.slice(0, 30), routes }
+}
+
+// ── 한자 한 글자 ──────────────────────────────────────────────────────────
+const isSingleKanji = (s) => [...String(s)].length === 1 && /[一-鿿㐀-䶿]/.test(s)
+
+// 한자 카드. 낱말을 누르면 그 낱말 조회로 넘어간다.
+function singleKanji(ch) {
+  const card = kanjiCard(ch, {
+    onWord: (e) => { location.hash = '#/q/' + encodeURIComponent(e.word) },
+  })
+  return card || h('div', { class: 'card' },
+    h('p', { style: 'margin:0' }, '이 한자는 내장 사전에 없습니다.'))
 }
 
 // ── 결과 ──────────────────────────────────────────────────────────────────

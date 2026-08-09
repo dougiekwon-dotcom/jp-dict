@@ -6,7 +6,7 @@
 // 그래서 AI가 느리거나 키가 없어도 카드 위쪽 절반은 항상 쓸모가 있다.
 
 import { h } from './dom.js'
-import { kanjiInfo, kanjiChars } from '../core/dict.js'
+import { kanjiInfo, kanjiChars, wordsContaining } from '../core/dict.js'
 import { wordBridge } from '../core/hanja.js'
 
 // JMdict 품사 코드는 종류가 많다. 자주 나오는 것만 한국어로 옮기고 나머지는
@@ -119,6 +119,77 @@ export function kanjiRow(word, reading) {
   }
 
   return box
+}
+
+// 한자 한 글자 카드.
+//
+// 책에서 모르는 한자를 만났을 때 알고 싶은 건 그 글자의 뜻만이 아니라 「어떻게
+// 읽고, 어떤 말에 쓰이는가」다. 낱말 목록이 붙어야 손에 잡힌다. 전부 내장
+// 사전에서 나오므로 AI를 기다리지 않는다.
+export function kanjiCard(ch, { onWord } = {}) {
+  const info = kanjiInfo(ch)
+  if (!info) return null
+
+  const meta = [
+    info.strokes ? `${info.strokes}획` : null,
+    info.jlpt ? `JLPT N${info.jlpt}` : null,
+    info.grade && info.grade <= 6 ? `초등 ${info.grade}학년` : null,
+    info.freq ? `빈도 ${info.freq}위` : null,
+  ].filter(Boolean)
+
+  const card = h('div', { class: 'card' },
+    h('div', { style: 'display:flex;gap:14px;align-items:flex-start' },
+      h('div', { class: 'ja', style: 'font-size:3.4rem;line-height:1' }, ch),
+      h('div', { style: 'flex:1;min-width:0' },
+        info.korean && h('div', { style: 'font-size:1.3rem;color:var(--kor);font-weight:var(--w-strong)' }, info.korean),
+        info.on.length && h('div', { class: 'ja small' }, '음독 ' + info.on.join(' · ')),
+        info.kun.length && h('div', { class: 'ja small' }, '훈독 ' + info.kun.join(' · ')),
+        meta.length && h('div', { class: 'small muted', style: 'margin-top:4px' }, meta.join(' · ')),
+      ),
+    ),
+    info.meanings.length
+      ? h('ul', { class: 'meanings muted', style: 'margin-top:10px' },
+          info.meanings.map((m) => h('li', {}, m)))
+      : null,
+  )
+
+  const words = wordsContaining(ch, 8)
+  if (words.length) {
+    card.append(
+      h('hr', { class: 'sep' }),
+      h('div', { class: 'small muted', style: 'margin-bottom:2px' }, '이 한자가 들어간 낱말'),
+      h('ul', { class: 'hits' }, words.map((e) => h('li', {},
+        h('button', { onClick: () => onWord?.(e) },
+          h('span', { class: 'w ja' }, e.word),
+          h('span', { class: 'r ja' }, e.reading),
+          h('span', { class: 'g' }, e.glosses[0] || ''),
+        ),
+      ))),
+    )
+  }
+
+  return card
+}
+
+// 손글씨를 잘못 읽었을 때 고를 수 있는 후보들. 글자만 늘어놓으면 未·末처럼
+// 닮은 한자를 눈으로 못 가리므로 한국음과 음독을 같이 붙인다.
+export function kanjiChoices(chars, onPick) {
+  const items = chars.map((ch) => {
+    const info = kanjiInfo(ch)
+    return h('button', {
+      class: 'kanji-chip',
+      style: 'cursor:pointer;border-color:var(--line);background:var(--panel)',
+      onClick: () => onPick(ch),
+    },
+      h('div', { class: 'ch ja' }, ch),
+      h('div', { class: 'ko' }, info?.korean || '—'),
+      h('div', { class: 'on ja' }, info?.on?.[0] || ''),
+    )
+  })
+  return h('div', {},
+    h('div', { class: 'small muted', style: 'margin-bottom:6px' }, '이 글자가 아니라면'),
+    h('div', { class: 'kanji-row' }, items),
+  )
 }
 
 // 후보가 여럿일 때의 간단 목록. onPick(entry)으로 선택을 올려보낸다.
