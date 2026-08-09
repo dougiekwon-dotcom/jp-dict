@@ -44,6 +44,7 @@ const DEFAULTS = {
   preset: 'balanced',
   models: null,        // 프리셋을 벗어나 직접 고른 경우에만 채워진다
   book: '',            // 지금 읽는 책 — 조회한 낱말에 자동으로 붙는다
+  textWeight: 'normal', // 'normal' | 'light' — 화면에 따라 글자가 무거워 보일 때
 
   // 기기 간 동기화 (sync.js). 기록만 오가고 apiKey는 올리지 않는다.
   syncToken: '',       // GitHub 토큰 (gist 권한)
@@ -71,6 +72,12 @@ export function modelFor(task) {
   const s = getSettings()
   const preset = PRESETS[s.preset] || PRESETS.balanced
   return s.models?.[task] || preset.models[task]
+}
+
+// 글자 굵기를 문서 전체에 반영한다. CSS 변수 두 개(--w-strong/--w-medium)를
+// 바꾸는 것이 전부라 화면을 다시 그릴 필요가 없다.
+export function applyTextWeight(weight = getSettings().textWeight) {
+  document.documentElement.dataset.weight = weight === 'light' ? 'light' : 'normal'
 }
 
 // 키가 형태만이라도 맞는지. 오타나 붙여넣기 사고를 여기서 걸러 준다.

@@ -12,6 +12,17 @@
   --ok: #2f8f4e;
   --bad: #c0392b;
   --shadow: 0 2px 12px rgba(40, 60, 58, 0.08);
+
+  /* 글자 굵기는 변수로 둔다. 태블릿처럼 고DPI 화면에서 Noto Sans CJK가
+     600~700으로 렌더되면 상당히 무거워 보이는데, 기기마다 체감이 달라서
+     설정에서 한 단계 더 가늘게 고를 수 있어야 한다. */
+  --w-strong: 600;   /* 표제어 */
+  --w-medium: 500;   /* 버튼·칩·탭·목록 */
+}
+
+:root[data-weight="light"] {
+  --w-strong: 500;
+  --w-medium: 400;
 }
 
 * { box-sizing: border-box; }
@@ -21,8 +32,12 @@ html, body {
   padding: 0;
   background: var(--bg);
   color: var(--ink);
-  font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo", system-ui, sans-serif;
+  font-family: -apple-system, "Segoe UI", "Malgun Gothic", "Apple SD Gothic Neo",
+    "Noto Sans KR", system-ui, sans-serif;
   -webkit-text-size-adjust: 100%;
+  /* 서브픽셀 렌더링이 글자를 두껍게 만든다. 끄면 눈에 띄게 가벼워진다. */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* 일본어는 한국어 폰트로 렌더되면 자형이 어색해진다. 일본어를 담는 요소에만
@@ -48,7 +63,7 @@ button { font: inherit; cursor: pointer; }
   color: var(--ink);
   border-radius: 10px;
   padding: 11px 16px;
-  font-weight: 600;
+  font-weight: var(--w-medium);
   box-shadow: var(--shadow);
   transition: transform .05s ease, background .15s ease;
 }
@@ -90,7 +105,7 @@ button { font: inherit; cursor: pointer; }
   color: var(--muted);
   border-radius: 9px;
   padding: 9px 4px;
-  font-weight: 700;
+  font-weight: var(--w-medium);
   font-size: .9rem;
 }
 .modes button.active {
@@ -116,8 +131,8 @@ button { font: inherit; cursor: pointer; }
 
 /* ── 결과 카드 ── */
 .entry-head { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
-.entry-word { font-size: 2rem; font-weight: 700; letter-spacing: .02em; }
-.entry-reading { font-size: 1.05rem; color: var(--accent-ink); font-weight: 600; }
+.entry-word { font-size: 2rem; font-weight: var(--w-strong); letter-spacing: .02em; }
+.entry-reading { font-size: 1.05rem; color: var(--accent-ink); font-weight: var(--w-medium); }
 .entry-pos { font-size: .78rem; color: var(--muted); }
 
 .meanings { margin: 10px 0 0; padding: 0; list-style: none; }
@@ -138,7 +153,7 @@ button { font: inherit; cursor: pointer; }
   padding: 8px 10px;
 }
 .kanji-chip .ch { font-size: 1.7rem; line-height: 1.15; }
-.kanji-chip .ko { font-size: .95rem; color: var(--kor); font-weight: 700; }
+.kanji-chip .ko { font-size: .95rem; color: var(--kor); font-weight: var(--w-strong); }
 .kanji-chip .on { font-size: .82rem; color: var(--muted); }
 .bridge {
   margin-top: 8px;
@@ -159,7 +174,7 @@ button { font: inherit; cursor: pointer; }
 .badge-again {
   display: inline-block;
   font-size: .8rem;
-  font-weight: 600;
+  font-weight: var(--w-medium);
   color: var(--accent-ink);
   background: var(--accent-soft);
   border-radius: 999px;
@@ -173,7 +188,7 @@ button { font: inherit; cursor: pointer; }
   border-radius: 999px;
   background: var(--accent-soft);
   color: var(--accent-ink);
-  font-weight: 600;
+  font-weight: var(--w-medium);
 }
 
 /* 결과 목록(후보가 여럿일 때) */
@@ -190,7 +205,7 @@ button { font: inherit; cursor: pointer; }
   gap: 10px;
   align-items: baseline;
 }
-.hits .w { font-size: 1.15rem; font-weight: 600; }
+.hits .w { font-size: 1.15rem; font-weight: var(--w-medium); }
 .hits .r { font-size: .85rem; color: var(--accent-ink); }
 .hits .g { font-size: .85rem; color: var(--muted); margin-left: auto; text-align: right; }
 
@@ -224,7 +239,7 @@ button { font: inherit; cursor: pointer; }
   text-decoration: none;
   color: var(--muted);
   font-size: .72rem;
-  font-weight: 600;
+  font-weight: var(--w-medium);
   padding: 3px 0;
   display: flex;
   flex-direction: column;

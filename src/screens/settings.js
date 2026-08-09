@@ -1,7 +1,9 @@
 import { h, clear, toast, ago } from '../ui/dom.js'
 import { syncState, createSyncGist, syncNow } from '../core/sync.js'
 import { ensureLoaded, isLoaded, dictMeta } from '../core/dict.js'
-import { getSettings, saveSettings, PRESETS, MODEL_LABEL, modelFor, hasApiKey } from '../core/settings.js'
+import {
+  getSettings, saveSettings, PRESETS, MODEL_LABEL, modelFor, hasApiKey, applyTextWeight,
+} from '../core/settings.js'
 import { cacheSize, cacheClear, exportAll, importMerge, invalidateCounts } from '../core/store.js'
 import {
   versionLabel, isDirty, isUpdateWaiting, onUpdateState, checkForUpdate, applyWaitingUpdate,
@@ -12,6 +14,7 @@ export async function settings(view) {
   view.append(
     h('h2', { class: 'screen-title' }, '설정'),
     apiCard(),
+    displayCard(),
     bookCard(),
     syncCard(),
     backupCard(),
@@ -143,6 +146,40 @@ function apiCard() {
       '이 앱 전용 키를 새로 발급하고 콘솔에서 사용 한도를 걸어 두세요.'),
   )
   return card
+}
+
+// ── 화면 ──────────────────────────────────────────────────────────────────
+// 같은 굵기라도 기기에 따라 체감이 꽤 다르다. 태블릿처럼 고DPI 화면에서
+// Noto Sans CJK는 눈에 띄게 무겁게 렌더된다.
+function displayCard() {
+  const s = getSettings()
+  const sample = h('div', { class: 'card', style: 'margin:10px 0 0;padding:12px' },
+    h('div', { class: 'entry-head' },
+      h('span', { class: 'entry-word ja' }, '経済'),
+      h('span', { class: 'entry-reading ja' }, 'けいざい'),
+    ),
+    h('ul', { class: 'meanings', style: 'margin-top:4px' }, h('li', {}, '경제, 경제학')),
+  )
+
+  const buttons = h('div', { style: 'display:flex;gap:8px' })
+  const paint = () => {
+    clear(buttons)
+    for (const [id, label] of [['normal', '보통'], ['light', '가늘게']]) {
+      buttons.append(h('button', {
+        class: 'btn btn-sm' + (getSettings().textWeight === id ? ' btn-primary' : ''),
+        onClick: () => { saveSettings({ textWeight: id }); applyTextWeight(id); paint() },
+      }, label))
+    }
+  }
+  paint()
+
+  return h('div', { class: 'card' },
+    h('h3', {}, '글자 굵기'),
+    h('p', { class: 'small muted', style: 'margin:0 0 10px' },
+      '화면에 따라 글자가 무거워 보이면 한 단계 가늘게 할 수 있습니다.'),
+    buttons,
+    sample,
+  )
 }
 
 // ── 읽는 책 ───────────────────────────────────────────────────────────────
