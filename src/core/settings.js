@@ -44,6 +44,12 @@ const DEFAULTS = {
   preset: 'balanced',
   models: null,        // 프리셋을 벗어나 직접 고른 경우에만 채워진다
   book: '',            // 지금 읽는 책 — 조회한 낱말에 자동으로 붙는다
+
+  // 기기 간 동기화 (sync.js). 기록만 오가고 apiKey는 올리지 않는다.
+  syncToken: '',       // GitHub 토큰 (gist 권한)
+  gistId: '',          // 저장소로 쓰는 비공개 Gist — 이게 「연동 코드」다
+  autoSync: true,      // 앱을 켤 때와 덮을 때 자동으로
+  lastSyncAt: 0,
 }
 
 export function getSettings() {

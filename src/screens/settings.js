@@ -1,4 +1,5 @@
-import { h, clear, toast } from '../ui/dom.js'
+import { h, clear, toast, ago } from '../ui/dom.js'
+import { syncState, createSyncGist, syncNow } from '../core/sync.js'
 import { ensureLoaded, isLoaded, dictMeta } from '../core/dict.js'
 import { getSettings, saveSettings, PRESETS, MODEL_LABEL, modelFor, hasApiKey } from '../core/settings.js'
 import { cacheSize, cacheClear, exportAll, importMerge, invalidateCounts } from '../core/store.js'
@@ -12,6 +13,7 @@ export async function settings(view) {
     h('h2', { class: 'screen-title' }, '설정'),
     apiCard(),
     bookCard(),
+    syncCard(),
     backupCard(),
     dictCard(),
     versionCard(),
@@ -159,6 +161,161 @@ function bookCard() {
       '적어 두면 찾은 낱말에 자동으로 붙습니다. 나중에 책별로 모아 볼 수 있습니다.'),
     input,
   )
+}
+
+// ── 기기 연동 ─────────────────────────────────────────────────────────────
+// 첫 기기에서 저장소를 만들면 「연동 코드」가 나오고, 다른 기기에 그 코드를 넣으면
+// 이후로는 앱을 켤 때와 덮을 때 알아서 합쳐진다.
+function syncCard() {
+  const card = h('div', { class: 'card' }, h('h3', {}, '기기 연동'))
+  const body = h('div')
+  card.append(
+    h('p', { class: 'small muted', style: 'margin:0 0 10px' },
+      '태블릿과 폰의 단어장·조회 기록·복습 상태를 합칩니다. ' +
+      'GitHub 비공개 Gist를 저장소로 씁니다. API 키는 올라가지 않습니다.'),
+    body,
+  )
+
+  const input = (props) => h('input', {
+    class: 'block',
+    autocomplete: 'off',
+    spellcheck: false,
+    style: 'font:inherit;padding:11px 13px;border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--ink)',
+    ...props,
+  })
+
+  const paint = () => {
+    clear(body)
+    const st = syncState()
+
+    if (!st.hasToken) {
+      const tokenBox = input({ type: 'password', placeholder: 'ghp_... (gist 권한)' })
+      body.append(
+        tokenBox,
+        h('div', { style: 'display:flex;gap:8px;margin-top:8px' },
+          h('button', {
+            class: 'btn btn-sm btn-primary',
+            onClick: () => {
+              const t = tokenBox.value.trim()
+              if (!t) return toast('토큰을 넣어 주세요', 'bad')
+              saveSettings({ syncToken: t })
+              paint()
+            },
+          }, '토큰 저장'),
+        ),
+        h('p', { class: 'small muted', style: 'margin:10px 0 0' },
+          'GitHub → Settings → Developer settings → Personal access tokens → ' +
+          'Tokens (classic) → Generate new token → 권한은 gist 하나만 체크.'),
+      )
+      return
+    }
+
+    if (!st.gistId) {
+      const codeBox = input({ placeholder: '다른 기기에서 받은 연동 코드' })
+      body.append(
+        h('p', { class: 'small', style: 'margin:0 0 8px' }, '이 기기가 처음이라면 저장소를 만드세요.'),
+        h('button', {
+          class: 'btn btn-sm btn-primary block',
+          onClick: async (e) => {
+            e.target.disabled = true
+            e.target.textContent = '만드는 중…'
+            try {
+              await createSyncGist(getSettings().syncToken)
+              toast('저장소를 만들었습니다')
+              paint()
+            } catch (err) {
+              e.target.disabled = false
+              e.target.textContent = '저장소 만들기'
+              toast(err.message, 'bad')
+            }
+          },
+        }, '저장소 만들기'),
+        h('p', { class: 'small muted', style: 'margin:14px 0 6px' }, '이미 다른 기기에서 만들었다면'),
+        codeBox,
+        h('button', {
+          class: 'btn btn-sm block',
+          style: 'margin-top:8px',
+          onClick: () => {
+            const id = codeBox.value.trim()
+            if (!id) return toast('연동 코드를 넣어 주세요', 'bad')
+            saveSettings({ gistId: id })
+            paint()
+            void runSync()
+          },
+        }, '코드로 연결'),
+      )
+      return
+    }
+
+    // 연결 완료 상태
+    const status = h('p', { class: 'small muted', style: 'margin:10px 0 0' },
+      st.lastSyncAt ? `마지막 동기화 ${ago(st.lastSyncAt)}` : '아직 동기화한 적 없습니다.')
+
+    const codeRow = h('div', { style: 'display:flex;gap:6px;align-items:center;flex-wrap:wrap' },
+      h('span', { class: 'small muted' }, '연동 코드'),
+      h('code', { class: 'small', style: 'background:#eae5d8;padding:3px 8px;border-radius:6px;word-break:break-all' }, st.gistId),
+      h('button', {
+        class: 'btn btn-ghost btn-sm',
+        onClick: async () => {
+          try { await navigator.clipboard.writeText(st.gistId); toast('복사했습니다') }
+          catch { toast('복사하지 못했습니다', 'bad') }
+        },
+      }, '복사'),
+    )
+
+    const syncBtn = h('button', { class: 'btn btn-sm btn-primary', onClick: () => runSync(syncBtn) }, '지금 동기화')
+
+    body.append(
+      codeRow,
+      h('p', { class: 'small muted', style: 'margin:8px 0 0' },
+        '다른 기기의 같은 화면에 이 코드를 넣으면 연결됩니다.'),
+      h('div', { style: 'display:flex;gap:8px;margin-top:12px;flex-wrap:wrap' },
+        syncBtn,
+        h('button', {
+          class: 'btn btn-sm',
+          onClick: () => {
+            if (!confirm('이 기기의 연동을 끊을까요? 기록은 그대로 남습니다.')) return
+            saveSettings({ syncToken: '', gistId: '' })
+            paint()
+          },
+        }, '연동 끊기'),
+      ),
+      h('label', { class: 'small muted', style: 'display:flex;gap:6px;align-items:center;margin-top:10px' },
+        h('input', {
+          type: 'checkbox',
+          checked: st.auto,
+          onChange: (e) => saveSettings({ autoSync: e.target.checked }),
+        }),
+        '앱을 켤 때와 덮을 때 자동으로',
+      ),
+      status,
+    )
+
+    async function runSync(btn) {
+      if (btn) { btn.disabled = true; btn.textContent = '동기화 중…' }
+      try {
+        const r = await syncNow()
+        toast(`합쳤습니다 — 새로 ${r.added}개, 갱신 ${r.merged}개`)
+        paint()
+      } catch (err) {
+        toast(err.message, 'bad')
+        if (btn) { btn.disabled = false; btn.textContent = '지금 동기화' }
+      }
+    }
+  }
+
+  async function runSync() {
+    try {
+      const r = await syncNow()
+      toast(`합쳤습니다 — 새로 ${r.added}개, 갱신 ${r.merged}개`)
+      paint()
+    } catch (err) {
+      toast(err.message, 'bad')
+    }
+  }
+
+  paint()
+  return card
 }
 
 // ── 백업 ──────────────────────────────────────────────────────────────────
