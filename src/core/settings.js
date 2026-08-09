@@ -8,25 +8,27 @@ const KEY = 'jp-dict:settings'
 //   뜻풀이   읽는 법과 영어 뜻을 사전이 이미 넘겨준다. 모델이 하는 일은 한국어로
 //            옮기고 예문을 쓰는 것뿐이라 작은 모델로 충분하다.
 //   문장     번역 + 후리가나 + 낱말 분해. 중간.
-//   손글씨   흘려 쓴 한자를 그림으로 판독한다. 여기서 틀리면 사용자가 다시 써야
-//            하므로, 조회 한 번이 비싸도 강한 모델이 값어치를 한다.
+//   손글씨   흘려 쓴 한자를 그림으로 판독한다. 틀리면 사용자가 다시 써야 하므로
+//            뜻풀이보다는 위를 쓴다. Sonnet 5는 Sonnet 계열 최초로 고해상도
+//            비전이 들어갔고 도입가 기간이라 값도 Haiku의 두 배 수준이다.
 //
-// 조회당 대략: Haiku 3원 · Sonnet 8원 · Opus 13~20원. 결과는 영구 캐시되므로
-// 같은 낱말에는 한 번만 든다.
+// 조회 한 번 대략: Haiku 4원 · Sonnet 7원 · Opus 18원.
+// (손글씨는 이미지 토큰이 붙지만 잘라낸 그림이라 200토큰 남짓이다.)
+// 결과는 영구 캐시되므로 같은 낱말에는 한 번만 든다.
 export const PRESETS = {
   save: {
     label: '절약',
-    note: '전부 Haiku · 조회당 약 3원',
+    note: '전부 Haiku · 조회당 약 4원',
     models: { gloss: 'claude-haiku-4-5', sentence: 'claude-haiku-4-5', handwriting: 'claude-haiku-4-5' },
   },
   balanced: {
     label: '균형 (추천)',
-    note: '뜻·문장은 Haiku, 손글씨만 Opus 5',
-    models: { gloss: 'claude-haiku-4-5', sentence: 'claude-haiku-4-5', handwriting: 'claude-opus-5' },
+    note: '뜻·문장은 Haiku, 손글씨는 Sonnet 5',
+    models: { gloss: 'claude-haiku-4-5', sentence: 'claude-haiku-4-5', handwriting: 'claude-sonnet-5' },
   },
   best: {
     label: '최고 품질',
-    note: '전부 Opus 5 · 조회당 약 13~20원',
+    note: '전부 Opus 5 · 조회당 약 18원',
     models: { gloss: 'claude-opus-5', sentence: 'claude-opus-5', handwriting: 'claude-opus-5' },
   },
 }
