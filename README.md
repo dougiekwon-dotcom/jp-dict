@@ -68,6 +68,9 @@ npm run build
 JMdict · KANJIDIC2 — Electronic Dictionary Research and Development Group,
 CC BY-SA 4.0. <https://www.edrdg.org/>
 
+가공한 `public/data/*.json` 도 동일조건변경허락에 따라 CC BY-SA 4.0 이다.
+나머지 코드는 MIT — [LICENSE.md](LICENSE.md) 참조.
+
 가공된 데이터만 `public/data/`에 커밋한다. 원본(`raw/`)은 커밋하지 않으므로
 CI는 아무것도 내려받지 않는다.
 
