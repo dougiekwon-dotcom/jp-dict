@@ -9,7 +9,8 @@
     "build": "vite build",
     "preview": "vite preview",
     "prep": "node tools/prep.mjs",
-    "test": "node tools/test.mjs"
+    "test": "node tools/test.mjs",
+    "deploy": "node tools/deploy.mjs"
   },
   "devDependencies": {
     "vite": "^5.4.11",
