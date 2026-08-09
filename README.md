@@ -2,6 +2,8 @@
 
 일본어 책을 읽다가 모르는 한자·숙어를 찾는 PWA. 폰에 설치해서 쓴다.
 
+<https://dougiekwon-dotcom.github.io/jp-dict/>
+
 세 가지로 찾는다.
 
 | 입력 | 예 |
@@ -58,10 +60,20 @@ npm run dev
 > 이 앱 전용 키를 새로 발급하고 콘솔에서 사용 한도를 걸어 둘 것.
 
 ```bash
-npm test     # 규칙 회귀 테스트 (한자음·음독 조합·한글 변환·순위)
-npm run prep # 사전 원본 → public/data 재생성 (tools/prep.mjs 상단 주석 참조)
+npm test       # 규칙 회귀 테스트 (한자음·음독 조합·한글 변환·순위)
+npm run prep   # 사전 원본 → public/data 재생성 (tools/prep.mjs 상단 주석 참조)
 npm run build
+npm run deploy # 테스트 → 빌드 → gh-pages 브랜치로 배포
 ```
+
+## 배포
+
+GitHub Pages를 `gh-pages` 브랜치 서빙 모드로 쓴다. 코드를 고친 뒤
+`npm run deploy` 한 번이면 테스트·빌드·푸시까지 끝난다.
+
+Actions 자동 배포로 넘기려면 OAuth 토큰에 `workflow` 스코프가 필요하다
+(`gh auth refresh -h github.com -s workflow`). 스코프가 생기면 `.gitignore`
+에서 `.github/` 를 빼고 `.github/workflows/deploy.yml` 을 커밋하면 된다.
 
 ## 데이터
 
