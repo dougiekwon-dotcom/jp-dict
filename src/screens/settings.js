@@ -2,6 +2,9 @@ import { h, clear, toast } from '../ui/dom.js'
 import { ensureLoaded, isLoaded, dictMeta } from '../core/dict.js'
 import { getSettings, saveSettings, PRESETS, MODEL_LABEL, modelFor, hasApiKey } from '../core/settings.js'
 import { cacheSize, cacheClear, exportAll, importMerge, invalidateCounts } from '../core/store.js'
+import {
+  versionLabel, isDirty, isUpdateWaiting, onUpdateState, checkForUpdate, applyWaitingUpdate,
+} from '../core/version.js'
 
 export async function settings(view) {
   clear(view)
@@ -11,8 +14,61 @@ export async function settings(view) {
     bookCard(),
     backupCard(),
     dictCard(),
+    versionCard(),
     aboutCard(),
   )
+}
+
+// ── 버전 ──────────────────────────────────────────────────────────────────
+// PWA는 폰에 캐시되므로 「지금 이 폰에 떠 있는 게 어느 버전인가」가 애매해진다.
+// 빌드 때 새겨 넣은 커밋을 그대로 보여주고, 갱신도 여기서 직접 하게 한다.
+function versionCard() {
+  const card = h('div', { class: 'card' }, h('h3', {}, '버전'))
+
+  const label = h('p', { class: 'small', style: 'margin:0' }, versionLabel())
+  const note = h('p', { class: 'small muted', style: 'margin:6px 0 0' })
+  const button = h('button', { class: 'btn btn-sm', style: 'margin-top:10px' })
+
+  const paint = () => {
+    if (isUpdateWaiting()) {
+      note.textContent = '새 버전이 준비되었습니다.'
+      button.textContent = '지금 적용하고 새로고침'
+      button.className = 'btn btn-sm btn-primary'
+      button.onclick = () => applyWaitingUpdate()
+      return
+    }
+    note.textContent = isDirty
+      ? '커밋하지 않은 변경이 섞인 빌드입니다.'
+      : '설치된 앱은 새 버전을 자동으로 받아 두었다가 다음 실행에 적용합니다.'
+    button.textContent = '업데이트 확인'
+    button.className = 'btn btn-sm'
+    button.onclick = async () => {
+      button.disabled = true
+      button.textContent = '확인 중…'
+      try {
+        const state = await checkForUpdate()
+        if (state === 'waiting') { paint(); toast('새 버전이 있습니다') }
+        else if (state === 'installing') { note.textContent = '새 버전을 내려받는 중입니다.'; toast('내려받는 중…') }
+        else if (state === 'no-sw') { note.textContent = '개발 서버에서는 확인할 수 없습니다.'; }
+        else { note.textContent = '최신 버전입니다.'; toast('최신입니다') }
+      } catch (err) {
+        note.textContent = '확인하지 못했습니다: ' + (err?.message || err)
+      } finally {
+        if (!isUpdateWaiting()) { button.disabled = false; button.textContent = '업데이트 확인' }
+      }
+    }
+  }
+
+  paint()
+  const off = onUpdateState(paint)
+  // 화면을 떠나면 구독을 끊는다 (라우터가 화면 정리 함수를 부르지 않으므로
+  // 카드가 DOM에서 사라지는 것을 관찰해 스스로 정리한다).
+  new MutationObserver((_m, obs) => {
+    if (!card.isConnected) { off(); obs.disconnect() }
+  }).observe(document.getElementById('view'), { childList: true })
+
+  card.append(label, note, button)
+  return card
 }
 
 // ── API 키 ────────────────────────────────────────────────────────────────
