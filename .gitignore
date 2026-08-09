@@ -1,0 +1,7 @@
+node_modules/
+dist/
+dev-dist/
+
+# 사전 원본. prep.mjs가 public/data/로 가공하며, 가공 결과만 커밋한다.
+# 다시 받으려면: npm run prep -- --help 의 안내 참조 (tools/prep.mjs 상단 주석)
+raw/

@@ -1,0 +1,57 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Anthropic 브라우저 직접 호출 CORS 검증</title>
+<style>
+  body { font: 14px/1.6 "Segoe UI", "Malgun Gothic", system-ui, sans-serif; max-width: 720px; margin: 2rem auto; padding: 0 1rem; }
+  pre { background: #f4f1ea; padding: 1rem; border-radius: 8px; white-space: pre-wrap; word-break: break-all; }
+  .ok { color: #1a7f5a; font-weight: 600; }
+  .bad { color: #b03030; font-weight: 600; }
+</style>
+
+<h1>브라우저 → api.anthropic.com 직접 호출 검증</h1>
+<p>
+  더미 API 키로 요청합니다. <strong>401 응답 본문을 JS가 읽을 수 있으면 CORS 통과</strong>입니다
+  (인증 실패는 예상된 결과이고, 중요한 건 응답이 브라우저까지 도달하느냐입니다).
+  CORS가 막혀 있으면 fetch 자체가 TypeError로 죽습니다.
+</p>
+<pre id="out">실행 중...</pre>
+
+<script type="module">
+  const out = document.getElementById('out')
+  const log = (s) => { out.textContent += s + '\n' }
+  out.textContent = ''
+
+  log('origin: ' + location.origin)
+  log('')
+
+  try {
+    const res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'x-api-key': 'sk-ant-cors-probe-not-a-real-key',
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true',
+      },
+      body: JSON.stringify({
+        model: 'claude-opus-5',
+        max_tokens: 1,
+        messages: [{ role: 'user', content: 'hi' }],
+      }),
+    })
+
+    log('HTTP status: ' + res.status)
+    const body = await res.text()
+    log('body: ' + body)
+    log('')
+    log('=> CORS 통과. 프리플라이트와 실제 응답이 모두 브라우저에 도달했습니다.')
+    out.insertAdjacentHTML('beforeend',
+      '<span class="ok">RESULT: CORS_OK</span>')
+  } catch (err) {
+    log('fetch threw: ' + err.name + ' — ' + err.message)
+    log('')
+    log('=> CORS 차단 가능성. 콘솔의 CORS 에러 메시지를 확인하세요.')
+    out.insertAdjacentHTML('beforeend',
+      '<span class="bad">RESULT: CORS_BLOCKED</span>')
+  }
+</script>
